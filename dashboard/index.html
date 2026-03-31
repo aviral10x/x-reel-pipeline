@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reel Pipeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #080809;
+  --surface:  #0f0f11;
+  --card:     #111114;
+  --border:   #1c1c20;
+  --border2:  #252528;
+  --text:     #e8e8ec;
+  --muted:    #4a4a55;
+  --dim:      #8888a0;
+  --red:      #ff3b3b;
+  --orange:   #ff7a3b;
+  --green:    #3bffaa;
+  --blue:     #3b8fff;
+  --mono:     'JetBrains Mono', monospace;
+  --sans:     'Syne', sans-serif;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+/* subtle grid bg */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.012) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.012) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Header ─────────────────────────────────────────────────────── */
+header {
+  position: sticky; top: 0; z-index: 50;
+  background: rgba(8,8,9,0.88);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 32px;
+  height: 56px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+
+.logo {
+  display: flex; align-items: center; gap: 10px;
+  font-family: var(--sans); font-weight: 800; font-size: 16px;
+  letter-spacing: -0.3px;
+}
+
+.logo-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--red);
+  box-shadow: 0 0 12px var(--red);
+}
+
+.status {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 11px; color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  padding: 5px 12px;
+}
+
+.pulse {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--green);
+  animation: blink 2.4s ease infinite;
+}
+.pulse.dead { background: var(--muted); animation: none; }
+
+@keyframes blink {
+  0%,100% { opacity:1; } 50% { opacity:0.2; }
+}
+
+/* ── Stats ──────────────────────────────────────────────────────── */
+.stats {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  border-bottom: 1px solid var(--border);
+}
+
+.stat {
+  padding: 22px 32px;
+  border-right: 1px solid var(--border);
+  position: relative; z-index: 1;
+}
+.stat:last-child { border-right: none; }
+
+.stat-n {
+  font-family: var(--sans); font-weight: 800;
+  font-size: 36px; line-height: 1;
+  margin-bottom: 4px;
+}
+.stat-n.r { color: var(--red); }
+.stat-n.g { color: var(--green); }
+.stat-n.o { color: var(--orange); }
+
+.stat-l {
+  font-size: 10px; text-transform: uppercase;
+  letter-spacing: 0.1em; color: var(--muted);
+}
+
+/* ── Toolbar ────────────────────────────────────────────────────── */
+.toolbar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 16px 32px;
+  border-bottom: 1px solid var(--border);
+  position: relative; z-index: 1;
+}
+
+.search {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 9px 14px;
+  color: var(--text);
+  font-family: var(--mono); font-size: 12px;
+  outline: none;
+  transition: border-color .15s;
+}
+.search::placeholder { color: var(--muted); }
+.search:focus { border-color: var(--border2); }
+
+.btn {
+  font-family: var(--sans); font-weight: 700;
+  font-size: 11px; letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 9px 16px; border-radius: 6px;
+  cursor: pointer; border: none;
+  transition: opacity .15s;
+  white-space: nowrap;
+}
+.btn:hover { opacity: .75; }
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--dim);
+}
+.btn-ghost:hover { border-color: var(--border2); color: var(--text); opacity: 1; }
+
+.filter-tag {
+  font-size: 10px; letter-spacing: 0.07em;
+  background: rgba(255,59,59,0.08);
+  border: 1px solid rgba(255,59,59,0.2);
+  color: var(--red);
+  border-radius: 4px;
+  padding: 4px 10px;
+}
+
+/* ── Main content ───────────────────────────────────────────────── */
+.main {
+  padding: 24px 32px;
+  display: flex; flex-direction: column; gap: 14px;
+  position: relative; z-index: 1;
+  max-width: 1400px;
+}
+
+/* ── Card ───────────────────────────────────────────────────────── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  transition: border-color .15s, transform .15s;
+}
+.card:hover {
+  border-color: var(--border2);
+  transform: translateY(-1px);
+}
+
+.card-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  gap: 12px;
+}
+
+.card-author {
+  display: flex; align-items: center; gap: 10px;
+}
+
+.avi {
+  width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+  background: linear-gradient(135deg, var(--red), var(--orange));
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--sans); font-weight: 800; font-size: 12px;
+  color: white;
+}
+
+.author-name {
+  font-family: var(--sans); font-weight: 600; font-size: 13px;
+}
+.author-handle { font-size: 11px; color: var(--muted); }
+
+.badge {
+  font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em;
+  border-radius: 4px; padding: 3px 8px;
+  background: rgba(59,255,170,0.07);
+  border: 1px solid rgba(59,255,170,0.15);
+  color: var(--green);
+}
+.badge.err {
+  background: rgba(255,59,59,0.07);
+  border-color: rgba(255,59,59,0.15);
+  color: var(--red);
+}
+.badge.pend {
+  background: rgba(255,122,59,0.07);
+  border-color: rgba(255,122,59,0.15);
+  color: var(--orange);
+}
+
+/* ── Card body: side-by-side ────────────────────────────────────── */
+.card-body {
+  display: grid;
+  grid-template-columns: 1fr 1px 1fr;
+}
+
+.vdiv { background: var(--border); }
+
+.panel { padding: 18px 20px; }
+
+.panel-label {
+  font-size: 9px; text-transform: uppercase; letter-spacing: 0.13em;
+  color: var(--muted); margin-bottom: 12px;
+  display: flex; align-items: center; gap: 6px;
+}
+.panel-label::before {
+  content: ''; width: 5px; height: 5px;
+  border-radius: 50%; background: currentColor;
+}
+
+.tweet-text {
+  font-size: 12px; line-height: 1.75;
+  color: #909098; white-space: pre-wrap; word-break: break-word;
+}
+
+/* ── Script sections ────────────────────────────────────────────── */
+.section { margin-bottom: 16px; }
+.section:last-child { margin-bottom: 0; }
+
+.s-label {
+  font-size: 9px; letter-spacing: 0.12em;
+  text-transform: uppercase; font-weight: 500;
+  margin-bottom: 6px;
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.s-label::before { content: '●'; }
+.s-label.hook  { color: var(--red); }
+.s-label.story { color: var(--orange); }
+.s-label.cta   { color: var(--green); }
+
+.s-text {
+  font-size: 12px; line-height: 1.8;
+  color: var(--text); white-space: pre-wrap;
+}
+
+/* Visual cues */
+.s-text .visual-cue {
+  display: inline-block;
+  font-size: 10px;
+  color: var(--blue);
+  background: rgba(59,143,255,0.07);
+  border: 1px solid rgba(59,143,255,0.15);
+  border-radius: 3px;
+  padding: 1px 6px;
+  margin: 2px 0;
+}
+
+/* ── Card footer ────────────────────────────────────────────────── */
+.card-foot {
+  padding: 10px 20px;
+  border-top: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+
+.ts { font-size: 10px; color: var(--muted); }
+
+.copy {
+  font-size: 10px; font-family: var(--mono);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--dim); border-radius: 4px;
+  padding: 4px 12px; cursor: pointer;
+  transition: all .15s;
+}
+.copy:hover { border-color: var(--border2); color: var(--text); }
+.copy.ok { border-color: rgba(59,255,170,0.3); color: var(--green); }
+
+/* ── Empty / Loading ────────────────────────────────────────────── */
+.center {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 80px 40px;
+  text-align: center; gap: 12px; color: var(--muted);
+  position: relative; z-index: 1;
+}
+.center h2 { font-family: var(--sans); font-size: 16px; color: var(--dim); }
+.center p  { font-size: 12px; line-height: 1.7; max-width: 380px; }
+
+.spin {
+  width: 18px; height: 18px;
+  border: 2px solid var(--border);
+  border-top-color: var(--red);
+  border-radius: 50%;
+  animation: rot .7s linear infinite;
+}
+@keyframes rot { to { transform: rotate(360deg); } }
+
+.err-banner {
+  margin: 16px 32px 0;
+  background: rgba(255,59,59,0.06);
+  border: 1px solid rgba(255,59,59,0.15);
+  border-radius: 8px; padding: 14px 18px;
+  font-size: 11px; color: #ff7070; line-height: 1.7;
+  position: relative; z-index: 1;
+}
+
+@media (max-width: 700px) {
+  .stats { grid-template-columns: 1fr 1fr; }
+  .card-body { grid-template-columns: 1fr; }
+  .vdiv { display: none; }
+  .panel { border-bottom: 1px solid var(--border); }
+  header, .toolbar, .main { padding-left: 16px; padding-right: 16px; }
+  .stats .stat { padding: 16px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    Reel Pipeline
+  </div>
+  <div class="status">
+    <div class="pulse dead" id="dot"></div>
+    <span id="statusTxt">Connecting…</span>
+  </div>
+</header>
+
+<div class="stats">
+  <div class="stat">
+    <div class="stat-n" id="sTotal">–</div>
+    <div class="stat-l">Total bookmarks</div>
+  </div>
+  <div class="stat">
+    <div class="stat-n g" id="sDone">–</div>
+    <div class="stat-l">Scripts ready</div>
+  </div>
+  <div class="stat">
+    <div class="stat-n o" id="sPending">–</div>
+    <div class="stat-l">Pending</div>
+  </div>
+  <div class="stat">
+    <div class="stat-n r" id="sErrors">–</div>
+    <div class="stat-l">Errors</div>
+  </div>
+</div>
+
+<div class="toolbar">
+  <input class="search" id="q" type="text" placeholder="Search author, keyword, script…" oninput="filter()">
+  <span class="filter-tag" id="filterTag"></span>
+  <button class="btn btn-ghost" onclick="load()">↻ Refresh</button>
+</div>
+
+<div id="errBanner" style="display:none" class="err-banner">
+  ⚠️ Cannot reach <code>http://localhost:8787</code> — make sure <code>npm start</code> is running.
+</div>
+
+<div class="main" id="main">
+  <div class="center"><div class="spin"></div><span>Loading…</span></div>
+</div>
+
+<script>
+const API = 'http://localhost:8787';
+let all = [];
+
+// ── fetch ─────────────────────────────────────────────────────────
+async function load() {
+  try {
+    const [scripts, stats] = await Promise.all([
+      fetch(`${API}/api/scripts`).then(r => r.json()),
+      fetch(`${API}/api/stats`).then(r => r.json()),
+    ]);
+
+    document.getElementById('errBanner').style.display = 'none';
+    document.getElementById('dot').classList.remove('dead');
+    document.getElementById('statusTxt').textContent =
+      stats.lastPoll ? `Last poll: ${fmt(stats.lastPoll)}` : 'Running';
+
+    document.getElementById('sTotal').textContent   = stats.total   ?? 0;
+    document.getElementById('sDone').textContent    = stats.done    ?? 0;
+    document.getElementById('sPending').textContent = stats.pending ?? 0;
+    document.getElementById('sErrors').textContent  = stats.errors  ?? 0;
+
+    all = scripts;
+    render(scripts);
+  } catch {
+    document.getElementById('dot').classList.add('dead');
+    document.getElementById('statusTxt').textContent = 'Offline';
+    document.getElementById('errBanner').style.display = 'block';
+    document.getElementById('main').innerHTML = '';
+  }
+}
+
+function filter() {
+  const q = document.getElementById('q').value.toLowerCase().trim();
+  render(q ? all.filter(s =>
+    s.username?.toLowerCase().includes(q) ||
+    s.tweet_text?.toLowerCase().includes(q) ||
+    s.script?.toLowerCase().includes(q)
+  ) : all);
+}
+
+// ── parse script sections ─────────────────────────────────────────
+function parse(raw) {
+  if (!raw) return null;
+  const hook  = raw.match(/HOOK[^\n]*[\n:]+\s*([\s\S]*?)(?=\n\s*STORY|\n\s*CTA|$)/i)?.[1]?.trim() ?? '';
+  const story = raw.match(/STORY[^\n]*[\n:]+\s*([\s\S]*?)(?=\n\s*CTA|$)/i)?.[1]?.trim() ?? '';
+  const cta   = raw.match(/CTA[^\n]*[\n:]+\s*([\s\S]*?)$/i)?.[1]?.trim() ?? '';
+  return { hook, story, cta, raw };
+}
+
+function highlightVisuals(text) {
+  return esc(text).replace(/\[VISUAL:[^\]]+\]/g,
+    m => `<span class="visual-cue">${m}</span>`);
+}
+
+// ── render ────────────────────────────────────────────────────────
+function render(scripts) {
+  const el = document.getElementById('main');
+  if (!scripts.length) {
+    el.innerHTML = `
+      <div class="center">
+        <div style="font-size:36px">🎬</div>
+        <h2>No scripts yet</h2>
+        <p>Bookmark a tweet on X containing <strong>🎬</strong> and the pipeline will generate a Reel script on the next poll cycle.</p>
+      </div>`;
+    return;
+  }
+
+  el.innerHTML = scripts.map(s => {
+    const p   = parse(s.script);
+    const ini = (s.username || '?').slice(0,2).toUpperCase();
+    const badgeCls  = s.status === 'done' ? '' : s.status === 'error' ? 'err' : 'pend';
+    const badgeTxt  = s.status === 'done' ? 'Script ready' : s.status === 'error' ? 'Error' : 'Pending';
+    const id = `c${s.tweet_id}`;
+
+    const scriptHtml = !p ? `<div style="color:var(--muted);font-size:12px">Generating…</div>` : `
+      ${p.hook  ? `<div class="section"><div class="s-label hook">Hook</div><div class="s-text">${highlightVisuals(p.hook)}</div></div>` : ''}
+      ${p.story ? `<div class="section"><div class="s-label story">Story</div><div class="s-text">${highlightVisuals(p.story)}</div></div>` : ''}
+      ${p.cta   ? `<div class="section"><div class="s-label cta">CTA</div><div class="s-text">${highlightVisuals(p.cta)}</div></div>` : ''}
+    `;
+
+    return `
+    <div class="card" id="${id}">
+      <div class="card-head">
+        <div class="card-author">
+          <div class="avi">${ini}</div>
+          <div>
+            <div class="author-name">${esc(s.name || s.username)}</div>
+            <div class="author-handle">@${esc(s.username)} · ${fmt(s.created_at)}</div>
+          </div>
+        </div>
+        <span class="badge ${badgeCls}">${badgeTxt}</span>
+      </div>
+      <div class="card-body">
+        <div class="panel">
+          <div class="panel-label">Original Tweet</div>
+          <div class="tweet-text">${esc(s.tweet_text || '')}</div>
+        </div>
+        <div class="vdiv"></div>
+        <div class="panel">
+          <div class="panel-label">Reel Script</div>
+          ${scriptHtml}
+        </div>
+      </div>
+      <div class="card-foot">
+        <span class="ts">id: ${s.tweet_id}</span>
+        ${p ? `<button class="copy" onclick="cp(this)" data-s="${escAttr(p.raw)}">Copy script</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── utils ─────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) {
+  return String(s).replace(/"/g,'&quot;').replace(/\n/g,'&#10;');
+}
+function fmt(iso) {
+  if (!iso) return '';
+  return new Date(iso.endsWith('Z') ? iso : iso+'Z')
+    .toLocaleString('en-SG', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+}
+
+function cp(btn) {
+  navigator.clipboard.writeText(btn.dataset.s).then(() => {
+    btn.textContent = 'Copied!';
+    btn.classList.add('ok');
+    setTimeout(() => { btn.textContent = 'Copy script'; btn.classList.remove('ok'); }, 2000);
+  });
+}
+
+// ── init ──────────────────────────────────────────────────────────
+const FILTER_KW = '🎬';
+document.getElementById('filterTag').textContent = `filter: ${FILTER_KW}`;
+
+load();
+setInterval(load, 30_000);
+</script>
+</body>
+</html>

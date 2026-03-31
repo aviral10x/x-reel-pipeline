@@ -1,0 +1,24 @@
+{
+  "name": "x-reel-pipeline",
+  "version": "1.0.0",
+  "description": "X Bookmarks → Instagram Reel Script Pipeline",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts",
+    "auth": "tsx src/auth.ts",
+    "dashboard": "open dashboard/index.html || xdg-open dashboard/index.html"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.52.0",
+    "better-sqlite3": "^11.0.0",
+    "dotenv": "^16.4.5",
+    "open": "^10.1.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.0"
+  }
+}
